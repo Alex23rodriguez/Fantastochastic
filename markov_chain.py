@@ -73,7 +73,8 @@ class MarkovChain():
                     else:
                         classes[i] = set((i, j))
                     classes[j] = classes[i]
-        return set(map(tuple, classes.values()))
+        m = map(tuple, classes.values())
+        return dict((t, self._recurrent(t[0])) for t in m)
 
     def accessible(self, i, j, tried=None):
         """Indicate if i->j."""
@@ -88,3 +89,8 @@ class MarkovChain():
             if self.accessible(k, j, tried):
                 return True
         return False
+
+    def _recurrent(self, i):
+        is_recurrent = all(self.accessible(j, i)
+                           for j, a in enumerate(self.P[i]) if a > 0)
+        return 'recurrent' if is_recurrent else 'transitive'

@@ -143,7 +143,7 @@ class Matrix():
 
     @staticmethod
     def form_input(typ=int):
-        a = input('Enter entries separated by a space:\n').split(' ')
+        a = input('Enter entries separated by a space:\n').strip().split(' ')
         m = [a]
         for _ in range(len(a)-1):
             m.append(input().split(' '))
