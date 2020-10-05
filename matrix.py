@@ -15,6 +15,9 @@ class vector():
 
     def __getitem__(self, i):
         return self.v[i]
+        
+    def __setitem__(self, i, x):
+        self.v[i] = x
 
     def __mul__(self, number):
         if type(number) not in (float, int):
@@ -27,6 +30,7 @@ class vector():
     def __or__(self, other):
         assert type(other) is vector
         return self.v + other.v
+    
 
     @property
     def shape(self):
@@ -113,7 +117,9 @@ class Matrix():
         if type(p) is not int:
             return NotImplemented
         assert self.is_square, 'Matrix exponantiation only allowed for square matrices'
-        assert p >= 0, 'negative integers not allowed'
+        assert p >= -1, 'negative integers not allowed'
+        if p == -1:
+            return self.inverse
         if p == 0:
             return Matrix.identity(self.shape[0])
         return reduce(operator.mul, (itt.repeat(self, p)))
@@ -147,6 +153,10 @@ class Matrix():
     def T(self):
         return Matrix(self.cols)
 
+    @property
+    def trace(self):
+        return sum(r[i] for i, r in enumerate(self.m))
+
     # @cached_property #requires python 3.8
     @property
     def determinant(self):
@@ -172,9 +182,64 @@ class Matrix():
             m.append(input().strip().split(' '))
         return Matrix([[typ(x) for x in line] for line in m])
 
-    def invert(self):
+    # @cached_property #requires python 3.8
+    @property
+    def inverse(self):
+        """Find the inverse of the matrix."""
         assert self.is_square, 'cannot invert non-square matrix'
         assert self.determinant != 0, 'cannot invert singular matrix'
 
-        extended = self.m | Matrix.identity(self.shape[0])
+        ans = Matrix.identity(self.shape[0])
+        temp = Matrix(self.m) # copy self
+
+        for i in range(self.shape[0]):
+            op = Matrix.row_echelon_matrix(temp, i)
+            ans = op * ans
+            temp = op * temp
+        return ans
+
+    @staticmethod
+    def row_echelon_matrix(matrix, col):
+        """Preform row echelon algorithm on column col. Notice that only rows below that index will be checked."""
+        n = matrix.shape[0]
+        for i, r in enumerate(matrix[col:], col):
+            if r[col] != 0:
+                swapper = Matrix._swap_rows_matrix(n, i, col) # we use col as a row because we are on the diagonal
+                return swapper * Matrix.pivot_matrix(matrix, i, col)
+
+        print('could not eliminate row')
+        return Matrix.identity(n)
+
+    
+    @staticmethod
+    def pivot_matrix(matrix, row, col):
+        p = matrix.m[row][col]
+        assert p != 0, "can't pivot on 0 entry"
+        n = matrix.shape[0]
+
+        ans = Matrix._scale_row_matrix(n, Fraction(1, p), row)
+        for i, r in enumerate(matrix.m):
+            if i != row:
+                ans = Matrix._add_scaled_row_matrix(n, -r[col], row, i) * ans
+        return ans
+
+
+    @staticmethod
+    def _scale_row_matrix(size, scalar, row):
+        m = Matrix.identity(size)
+        m.m[row] = m.m[row].scale(scalar)
+        return m
+
+    @staticmethod
+    def _swap_rows_matrix(size, i, j):
+        m = Matrix.identity(size)
+        m.m[i], m.m[j] = m.m[j], m.m[i]
+        return m
+    
+    @staticmethod
+    def _add_scaled_row_matrix(size, s, i, j):
+        """Subtract s times row i to row j."""
+        m = Matrix.identity(size)
+        m.m[j][i] = s
+        return m
 
