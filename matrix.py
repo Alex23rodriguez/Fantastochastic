@@ -1,7 +1,7 @@
 from functools import reduce, lru_cache
 import operator
 import itertools as itt
-
+from fractions import Fraction
 
 class vector():
     def __init__(self, iterable):
@@ -20,6 +20,13 @@ class vector():
         if type(number) not in (float, int):
             return NotImplemented
         return self.scale(number)
+
+    def __round__(self, r=0):
+        return vector(round(float(i), r) for i in self.v)
+
+    def __or__(self, other):
+        assert type(other) is vector
+        return self.v + other.v
 
     @property
     def shape(self):
@@ -44,18 +51,26 @@ class vector():
         v = vector(iterable)
         return v.scale(1/v.magnitude(norm))
 
+    @staticmethod
+    def to_fraction_unit(lst):
+        n = sum(lst)
+        return vector([Fraction(i,n) for i in lst]) 
+
 
 class Matrix():
-    def __init__(self, list_of_lists):
+    def __init__(self, list_of_lists, precision=2):
         assert all(len(a) == len(
             list_of_lists[0]) for a in list_of_lists[1:]), 'every row must have the same amount of elements'
-        self.m = list_of_lists
-        self.round = 2
+        self.m = [vector(l) for l in list_of_lists]
+        self.round = precision
 
     def __hash__(self):
         return hash(tuple(tuple(a for a in row) for row in self.m))
 
     def __repr__(self):
+        if type(self.m[0][0]) == Fraction:
+            
+            return '\n'.join(''.join(str(a).ljust(self.round+6) for a in r) for r in self.m).strip()
         return '\n'.join(''.join(str(round(a, self.round)).ljust(self.round+3) for a in r) for r in self.m).strip()
 
     def __add__(self, other):
@@ -84,6 +99,14 @@ class Matrix():
 
     def __getitem__(self, i):
         return self.rows[i]
+    
+    def __round__(self, r=0):
+        return Matrix([[round(float(i), r) for i in l] for l in self.m], precision=r)
+
+    def __or__(self, other):
+        assert type(other) in (Matrix, vector)
+        assert self.shape[0] == other.shape[0]
+        return Matrix([v1 | v2 for v1, v2 in zip(self.m, other.m)])
 
     @lru_cache(maxsize=16)
     def __pow__(self, p):
@@ -146,5 +169,12 @@ class Matrix():
         a = input('Enter entries separated by a space:\n').strip().split(' ')
         m = [a]
         for _ in range(len(a)-1):
-            m.append(input().split(' '))
+            m.append(input().strip().split(' '))
         return Matrix([[typ(x) for x in line] for line in m])
+
+    def invert(self):
+        assert self.is_square, 'cannot invert non-square matrix'
+        assert self.determinant != 0, 'cannot invert singular matrix'
+
+        extended = self.m | Matrix.identity(self.shape[0])
+

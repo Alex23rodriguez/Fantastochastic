@@ -43,10 +43,23 @@ class MarkovChain():
         m = self.P ** n
         return m[x][y]
 
+
     def probX(self, x, n=1):
-        """Probility of being at state x in the n-th timestep."""
+        """Probability of being at state x in the n-th timestep."""
+        return self.prob(n)[x]
+
+    def prob(self, n=1):
+        """Probability of all states at timestep n."""
         m = self.P ** n
-        return (m.T*self.p0)[x]
+        return vector(m.T*self.p0)
+
+    def prob_Xn_eq_x_given_Xn2_eq_y(self, n, x, n2, y):
+        diff = n - n2
+        if diff >= 0:
+            return self.probXY(y, x, diff)
+        # apply bayes: P(A|B) = P(B|A)P(A)/P(B)
+        return self.probXY(y, x, -diff) * self.probX(x, n) / self.probX(y, n2)
+        
 
     @staticmethod
     def from_unscaled_matrix(unscaled_matrix: Matrix, init_prob=None):
@@ -57,6 +70,17 @@ class MarkovChain():
         scaled_matrix = Matrix([vector.to_unit(r, norm=1)
                                 for r in unscaled_matrix])
         return MarkovChain(scaled_matrix, init_prob)
+
+    @staticmethod
+    def from_unscaled_to_fraction(unscaled_matrix: Matrix, init_prob=None):
+        if init_prob is not None:
+            assert any(p != 0 for p in init_prob)
+            init_prob = vector.to_fraction_unit(init_prob)
+        assert all(any(p != 0 for p in row) for row in unscaled_matrix)
+        scaled_matrix = Matrix([vector.to_fraction_unit(r)
+                                for r in unscaled_matrix])
+        return MarkovChain(scaled_matrix, init_prob)
+
 
     # @cached_property
     @property
