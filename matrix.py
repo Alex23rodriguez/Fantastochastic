@@ -2,13 +2,14 @@ from functools import reduce, lru_cache
 import operator
 import itertools as itt
 from fractions import Fraction
+from numbers import Number
 
 class vector():
     def __init__(self, iterable):
         self.v = list(iterable)
 
     def __repr__(self):
-        return '\n'.join(str(a) for a in self.v)
+        return str(self.v)
 
     def __len__(self):
         return len(self.v)
@@ -19,8 +20,17 @@ class vector():
     def __setitem__(self, i, x):
         self.v[i] = x
 
+    def __add__(self, other):
+        if type(other) is not vector:
+            return NotImplemented
+        assert len(other) == len(self), 'vectors must be of the same length'
+        return vector([a+b for a, b in zip(self, other)])
+    
+    def __sub__(self, other):
+        return self + -1*other
+
     def __mul__(self, number):
-        if type(number) not in (float, int):
+        if not isinstance(number, Number):
             return NotImplemented
         return self.scale(number)
 
@@ -31,7 +41,6 @@ class vector():
         assert type(other) is vector
         return self.v + other.v
     
-
     @property
     def shape(self):
         return len(self.v), 1
@@ -62,20 +71,18 @@ class vector():
 
 
 class Matrix():
-    def __init__(self, list_of_lists, precision=2):
+    def __init__(self, list_of_lists):
         assert all(len(a) == len(
             list_of_lists[0]) for a in list_of_lists[1:]), 'every row must have the same amount of elements'
         self.m = [vector(l) for l in list_of_lists]
-        self.round = precision
 
     def __hash__(self):
         return hash(tuple(tuple(a for a in row) for row in self.m))
 
     def __repr__(self):
-        if type(self.m[0][0]) == Fraction:
-            
-            return '\n'.join(''.join(str(a).ljust(self.round+6) for a in r) for r in self.m).strip()
-        return '\n'.join(''.join(str(round(a, self.round)).ljust(self.round+3) for a in r) for r in self.m).strip()
+        if type(self.m[0][0]) is float:
+            return '\n'.join(''.join(str(round(a, 3)).ljust(6) for a in r) for r in self.m).strip()
+        return '\n'.join(''.join(str(a).ljust(8) for a in r) for r in self.m).strip()
 
     def __add__(self, other):
         if type(other) is not Matrix:
@@ -83,18 +90,21 @@ class Matrix():
         assert self.shape == other.shape, 'Matrix addition is only allowed if both matrices are the same shape'
         return Matrix([list(map(operator.add, r1, r2)) for r1, r2 in zip(self.m, other.m)])
 
+    def __sub__(self, other):
+        return self + (-1*other)
+
     def __mul__(self, other):
         if type(other) in (list, tuple, vector):
             assert len(
                 other) == self.shape[1], 'vector size must be equal to the number of columns'
-            return [vector.dot(r, other) for r in self.rows]
+            return vector([vector.dot(r, other) for r in self.rows])
         elif type(other) is Matrix:
             assert self.shape[1] == other.shape[0], "inner shape does not match"
             return Matrix([[vector.dot(r, c) for c in other.cols] for r in self.rows])
         return NotImplemented
 
     def __rmul__(self, other):
-        if type(other) not in (int, float):
+        if not isinstance(other, Number):
             return NotImplemented
         return self.scale(other)
 
@@ -157,6 +167,14 @@ class Matrix():
     def trace(self):
         return sum(r[i] for i, r in enumerate(self.m))
 
+    @property
+    def characteristic_polynomial(self):
+        from polynomial import Polynomial
+        m = Matrix(self.m)
+        for i, row in enumerate(m):
+            row[i] = Polynomial(row[i], -1)
+        return m.determinant
+
     # @cached_property #requires python 3.8
     @property
     def determinant(self):
@@ -167,6 +185,14 @@ class Matrix():
 
         return sum((-1)**j*self.m[0][j]*self.get_minor_for(0, j).determinant for j in range(s) if self.m[0][j] != 0)
 
+    @property
+    def positive_definite(self):
+        m, n = self.shape
+        if (m, n) == (1,1):
+            return self[0][0] > 0 
+        return self.determinant > 0 and self.get_minor_for(m-1, n-1).positive_definite
+
+
     def get_minor_for(self, i, j):
         return Matrix([[x for ind_c, x in enumerate(row) if ind_c != j] for ind_r, row in enumerate(self.m) if ind_r != i])
 
@@ -175,7 +201,7 @@ class Matrix():
         return Matrix([[int(i == j) for j in range(n)] for i in range(n)])
 
     @staticmethod
-    def form_input(typ=int):
+    def from_input(typ=int):
         a = input('Enter entries separated by a space:\n').strip().split(' ')
         m = [a]
         for _ in range(len(a)-1):
@@ -243,3 +269,8 @@ class Matrix():
         m.m[j][i] = s
         return m
 
+
+    @staticmethod
+    def least_squares(A, b):
+        """Return best x such that Ax = b."""
+        return (A.T*A)**-1 * A.T*b
