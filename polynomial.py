@@ -1,35 +1,34 @@
-from functools import reduce
-from operator import add, mul
-from itertools import zip_longest, repeat
+from itertools import zip_longest
 
 from numbers import Number
 from fractions import Fraction
-from collections import defaultdict
-
-import re
 
 superscript = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
+
 class Polynomial():
-    def __init__(self, *coefs, start=0):
+    def __init__(self, *coefs, start=0, identifier='λ'):
         self.coefs = [0]*start + list(coefs)
         assert len(self.coefs) > 0, "coefs iterable can't be empty"
         assert all(isinstance(c, Number) for c in self.coefs)
         while len(self.coefs) > 1 and self.coefs[-1] == 0:
             self.coefs.pop()
-    
+        self.identifier = identifier
+
     def __call__(self, x):
         return sum(c*(x**i) for i, c in enumerate((self.coefs)))
-    
+
     def __str__(self):
         ans = ''
         for i, c in enumerate(self.coefs):
             if c != 0:
-                ans = f"{'   + ' if c>0 else '   - '}{abs(c) if abs(c)!=1 else ''}{'x' if i > 0 else ''}{str(i).translate(superscript) if i>1 else ''}" + ans
+                ans = f"{'   + ' if c>0 else '   - '}{abs(c) if abs(c)!=1 else ''}{self.identifier if i > 0 else ''}{str(i).translate(superscript) if i>1 else ''}" + ans
         return ans
 
     def __repr__(self):
-        return ''.join(f'x{i}'.translate(superscript).ljust(8) for i in range(len(self.coefs))) + '\n' + ''.join(str(c).ljust(8) for c in self.coefs)
+        coefs = [str(c) for c in self.coefs]
+        justif = max(len(c) for c in coefs) + 2
+        return ''.join(f'{self.identifier}{i}'.translate(superscript).ljust(justif) for i in range(len(self.coefs))) + '\n' + ''.join((c.ljust(justif) for c in coefs))
 
     def __rmul__(self, other):
         if isinstance(other, Number):
@@ -46,7 +45,7 @@ class Polynomial():
                 l[i + j] += c1*c2
 
         return Polynomial(*l)
-    
+
     def __add__(self, other):
         if isinstance(other, Number):
             return self.__radd__(other)
@@ -65,7 +64,7 @@ class Polynomial():
         if type(other) is not Polynomial:
             return NotImplemented
         return self + -1*other
-    
+
     def __radd__(self, other):
         if not isinstance(other, Number):
             return NotImplemented
@@ -77,24 +76,32 @@ class Polynomial():
         if not isinstance(other, Number):
             return NotImplemented
         return other + -1*self
-    
+
     def __getitem__(self, i):
         return self.coefs[i]
+
+    def __eq__(self, other):
+        if type(other) != Polynomial:
+            return NotImplemented
+        return self.coefs == other.coefs
 
     def __truediv__(self, other):
         if isinstance(other, Number):
             return Fraction(1, other) * self
 
+        if type(other) is not Polynomial:
+            return NotImplemented
+
         if other.degree == 0:
             return self / other[0], 0
 
         diff = self.degree - other.degree
-        if diff < 0: # denominator polynomial is greater. we should stop.
+        if diff < 0:  # denominator polynomial is greater. we should stop.
             return 0, self
-        fits = Polynomial(Fraction(self[self.degree], other[other.degree]), start=diff)
+        fits = Polynomial(
+            Fraction(self[self.degree], other[other.degree]), start=diff)
         num, den = (self - fits * other) / other
         return num+fits, den
-
 
     @property
     def degree(self):
@@ -109,8 +116,8 @@ class Polynomial():
             last = positive
             x += delta
             positive = self(x) > 0
-            
-            if last ^ positive: # XOR
+
+            if last ^ positive:  # XOR
                 roots.append(round(x, resolution))
                 if len(roots) == self.degree:
                     break

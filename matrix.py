@@ -1,8 +1,9 @@
-from functools import reduce, lru_cache
+from functools import reduce, lru_cache, cached_property
 import operator
 import itertools as itt
 from fractions import Fraction
 from numbers import Number
+
 
 class vector():
     def __init__(self, iterable):
@@ -16,7 +17,7 @@ class vector():
 
     def __getitem__(self, i):
         return self.v[i]
-        
+
     def __setitem__(self, i, x):
         self.v[i] = x
 
@@ -25,7 +26,7 @@ class vector():
             return NotImplemented
         assert len(other) == len(self), 'vectors must be of the same length'
         return vector([a+b for a, b in zip(self, other)])
-    
+
     def __sub__(self, other):
         return self + -1*other
 
@@ -40,7 +41,7 @@ class vector():
     def __or__(self, other):
         assert type(other) is vector
         return self.v + other.v
-    
+
     @property
     def shape(self):
         return len(self.v), 1
@@ -67,7 +68,7 @@ class vector():
     @staticmethod
     def to_fraction_unit(lst):
         n = sum(lst)
-        return vector([Fraction(i,n) for i in lst]) 
+        return vector([Fraction(i, n) for i in lst])
 
 
 class Matrix():
@@ -79,10 +80,13 @@ class Matrix():
     def __hash__(self):
         return hash(tuple(tuple(a for a in row) for row in self.m))
 
+    # @cached_property
     def __repr__(self):
         if type(self.m[0][0]) is float:
             return '\n'.join(''.join(str(round(a, 3)).ljust(6) for a in r) for r in self.m).strip()
-        return '\n'.join(''.join(str(a).ljust(8) for a in r) for r in self.m).strip()
+
+        justif = max((len(str(item)) for item in itt.chain(*self.m))) + 2
+        return '\n'.join(''.join(str(a).ljust(justif) for a in r) for r in self.m).strip()
 
     def __add__(self, other):
         if type(other) is not Matrix:
@@ -113,7 +117,7 @@ class Matrix():
 
     def __getitem__(self, i):
         return self.rows[i]
-    
+
     def __round__(self, r=0):
         return Matrix([[round(float(i), r) for i in l] for l in self.m], precision=r)
 
@@ -137,7 +141,7 @@ class Matrix():
     def scale(self, scalar):
         return Matrix([list(map(lambda x: x*scalar, r)) for r in self.rows])
 
-    # @cached_property #requires python 3.8
+    # @cached_property  # requires python 3.8
     @property
     def shape(self):
         return len(self.m), len(self.m[0])
@@ -172,10 +176,10 @@ class Matrix():
         from polynomial import Polynomial
         m = Matrix(self.m)
         for i, row in enumerate(m):
-            row[i] = Polynomial(row[i], -1)
+            row[i] = Polynomial(row[i], -1, identifier='λ')
         return m.determinant
 
-    # @cached_property #requires python 3.8
+    # @cached_property  # requires python 3.8
     @property
     def determinant(self):
         assert self.is_square, "determinant is only defined for square matrices"
@@ -185,13 +189,13 @@ class Matrix():
 
         return sum((-1)**j*self.m[0][j]*self.get_minor_for(0, j).determinant for j in range(s) if self.m[0][j] != 0)
 
+    # @cached_property
     @property
     def positive_definite(self):
         m, n = self.shape
-        if (m, n) == (1,1):
-            return self[0][0] > 0 
+        if (m, n) == (1, 1):
+            return self[0][0] > 0
         return self.determinant > 0 and self.get_minor_for(m-1, n-1).positive_definite
-
 
     def get_minor_for(self, i, j):
         return Matrix([[x for ind_c, x in enumerate(row) if ind_c != j] for ind_r, row in enumerate(self.m) if ind_r != i])
@@ -208,7 +212,7 @@ class Matrix():
             m.append(input().strip().split(' '))
         return Matrix([[typ(x) for x in line] for line in m])
 
-    # @cached_property #requires python 3.8
+    # @cached_property  # requires python 3.8
     @property
     def inverse(self):
         """Find the inverse of the matrix."""
@@ -216,7 +220,7 @@ class Matrix():
         assert self.determinant != 0, 'cannot invert singular matrix'
 
         ans = Matrix.identity(self.shape[0])
-        temp = Matrix(self.m) # copy self
+        temp = Matrix(self.m)  # copy self
 
         for i in range(self.shape[0]):
             op = Matrix.row_echelon_matrix(temp, i)
@@ -230,13 +234,13 @@ class Matrix():
         n = matrix.shape[0]
         for i, r in enumerate(matrix[col:], col):
             if r[col] != 0:
-                swapper = Matrix._swap_rows_matrix(n, i, col) # we use col as a row because we are on the diagonal
+                # we use col as a row because we are on the diagonal
+                swapper = Matrix._swap_rows_matrix(n, i, col)
                 return swapper * Matrix.pivot_matrix(matrix, i, col)
 
         print('could not eliminate row')
         return Matrix.identity(n)
 
-    
     @staticmethod
     def pivot_matrix(matrix, row, col):
         p = matrix.m[row][col]
@@ -249,7 +253,6 @@ class Matrix():
                 ans = Matrix._add_scaled_row_matrix(n, -r[col], row, i) * ans
         return ans
 
-
     @staticmethod
     def _scale_row_matrix(size, scalar, row):
         m = Matrix.identity(size)
@@ -261,14 +264,13 @@ class Matrix():
         m = Matrix.identity(size)
         m.m[i], m.m[j] = m.m[j], m.m[i]
         return m
-    
+
     @staticmethod
     def _add_scaled_row_matrix(size, s, i, j):
         """Subtract s times row i to row j."""
         m = Matrix.identity(size)
         m.m[j][i] = s
         return m
-
 
     @staticmethod
     def least_squares(A, b):
